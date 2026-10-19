@@ -1,0 +1,21 @@
+# Example deployment. ROON_HOST is the Roon Core's IP address; give it a DHCP
+# reservation so it does not move. The volume keeps the pairing token, so the
+# extension only has to be enabled in Roon once.
+services:
+  roon-bridge:
+    image: ${COMPOSE_IMAGE_ROON_BRIDGE:-ghcr.io/theboyknowsclass/roon-bridge:latest}
+    container_name: roon-bridge
+    environment:
+      ROON_HOST: ${ROON_HOST:?set ROON_HOST to the Roon Core's IP}
+      ROON_PORT: ${ROON_PORT:-9330}
+      ROON_ZONE: ${ROON_ZONE:-Lounge}
+      ROON_VOLUME_STEP: ${ROON_VOLUME_STEP:-2}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${ROON_BRIDGE_PORT:-8080}:8080"
+    volumes:
+      - roon-bridge-data:/data
+    restart: unless-stopped
+
+volumes:
+  roon-bridge-data:

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111214">
+<title>Roon Bridge</title>
+<style>
+  :root {
+    --bg: #f4f4f2; --card: #ffffff; --fg: #1b1c1e; --muted: #6b6e73;
+    --line: #dcddd9; --accent: #2f6fe4; --accent-fg: #fff; --on: #1f9d55; --err: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111214; --card: #1b1c1f; --fg: #ececea; --muted: #94979c;
+      --line: #2c2e32; --accent: #5b8ff0; --accent-fg: #0b0c0d; --on: #3ccf7c; --err: #ef6b5b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  main { max-width: 440px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  h1 { font-size: 1.25rem; margin: 0; font-weight: 650; }
+  #conn { font-size: .85rem; color: var(--muted); white-space: nowrap; }
+  #conn::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted); margin-right: 6px; vertical-align: 1px; }
+  #conn.ok::before { background: var(--on); }
+  #conn.bad::before { background: var(--err); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; margin-bottom: 12px; }
+  h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    margin: 0 0 12px; font-weight: 600; }
+  button, select { font: inherit; color: inherit; border-radius: 10px;
+    border: 1px solid var(--line); background: transparent; padding: 12px; min-height: 48px; }
+  button { cursor: pointer; }
+  select { width: 100%; background: var(--card); }
+  button:disabled { opacity: .45; cursor: default; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .np { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; }
+  #art { width: 96px; height: 96px; border-radius: 10px; background: var(--line); object-fit: cover; display: block; }
+  #art[src=""] { visibility: hidden; }
+  #title { font-weight: 650; font-size: 1.05rem; overflow-wrap: anywhere; }
+  #artist, #album { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+  #playstate { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+  #playstate.playing { color: var(--on); }
+  .transport { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 10px; margin-top: 14px; }
+  .transport svg { width: 22px; height: 22px; vertical-align: middle; }
+  #playpause { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  .vol { display: grid; grid-template-columns: 48px 1fr 48px; gap: 10px; align-items: center; }
+  .vol button { padding: 0; font-size: 1.4rem; }
+  .volhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  #volval { font-size: 2rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  #mute { min-height: 40px; padding: 8px 14px; font-size: .9rem; }
+  #mute.on { background: var(--err); border-color: var(--err); color: #fff; }
+  #volnote { color: var(--muted); font-size: .85rem; margin-top: 8px; }
+  #volnote:empty { display: none; }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; }
+  #toast { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 408px; margin: 0 auto;
+    background: var(--err); color: #fff; padding: 12px 14px; border-radius: 10px; font-size: .9rem;
+    opacity: 0; transform: translateY(8px); transition: .2s; pointer-events: none; }
+  #toast.show { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Roon Bridge</h1>
+    <span id="conn">connecting…</span>
+  </header>
+
+  <section>
+    <h2>Zone</h2>
+    <select id="zone" aria-label="Zone"></select>
+  </section>
+
+  <section aria-label="Now playing">
+    <div class="np">
+      <img id="art" src="" alt="">
+      <div>
+        <div id="playstate">–</div>
+        <div id="title">Nothing playing</div>
+        <div id="artist"></div>
+        <div id="album"></div>
+      </div>
+    </div>
+    <div class="transport">
+      <button id="previous" aria-label="Previous track" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+      </button>
+      <button id="playpause" aria-label="Play or pause" disabled>
+        <svg id="ppicon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>
+      </button>
+      <button id="next" aria-label="Next track" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <section>
+    <div class="volhead">
+      <h2 style="margin:0">Volume</h2>
+      <button id="mute" disabled>Mute</button>
+    </div>
+    <div id="volval">–</div>
+    <div class="vol">
+      <button id="voldown" aria-label="Volume down" disabled>−</button>
+      <input id="vol" type="range" min="0" max="100" step="1" value="0" aria-label="Volume" disabled>
+      <button id="volup" aria-label="Volume up" disabled>+</button>
+    </div>
+    <div id="volnote"></div>
+  </section>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const PLAY = '<path d="M7 5v14l12-7z"/>';
+const PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+let state = null;
+let zone = null;
+let dragging = false;
+let source = null;
+let toastTimer;
+
+function toast(msg) {
+  $("toast").textContent = msg;
+  $("toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("toast").classList.remove("show"), 4000);
+}
+
+function withZone(path) {
+  return zone ? `${path}?zone=${encodeURIComponent(zone)}` : path;
+}
+
+async function call(method, path, body) {
+  try {
+    const res = await fetch(withZone(path), {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err.detail === "string" ? err.detail : res.statusText);
+    }
+    render(await res.json());
+  } catch (e) {
+    toast(e.message);
+    if (state) render(state);
+  }
+}
+
+// What the Roon app shows: the output's own number for a 0-100 scale, else 0-100.
+function shown(v) {
+  if (!v || v.level === null) return "–";
+  return v.type === "number" ? String(v.value) : String(Math.round(v.level));
+}
+
+function render(s) {
+  if (s.error) {
+    $("conn").textContent = "Roon unavailable";
+    $("conn").className = "bad";
+    $("volnote").textContent = s.error;
+    for (const id of ["previous", "playpause", "next", "vol", "volup", "voldown", "mute"]) $(id).disabled = true;
+    return;
+  }
+  state = s;
+  $("conn").textContent = "connected";
+  $("conn").className = "ok";
+
+  const np = s.now_playing;
+  $("playstate").textContent = s.state ?? "–";
+  $("playstate").className = s.state === "playing" ? "playing" : "";
+  $("title").textContent = np?.title || "Nothing playing";
+  $("artist").textContent = np?.artist || "";
+  $("album").textContent = np?.album || "";
+  const art = np?.image_key ? `/api/image/${encodeURIComponent(np.image_key)}` : "";
+  if ($("art").getAttribute("src") !== art) $("art").setAttribute("src", art);
+
+  for (const id of ["previous", "playpause", "next"]) $(id).disabled = false;
+  $("ppicon").innerHTML = s.state === "playing" ? PAUSE : PLAY;
+
+  const v = s.volume;
+  const hasLevel = !!v && v.level !== null;
+  $("vol").disabled = !hasLevel;
+  $("volup").disabled = $("voldown").disabled = !v;
+  $("mute").disabled = !v;
+  $("mute").classList.toggle("on", !!v?.muted);
+  $("mute").textContent = v?.muted ? "Muted" : "Mute";
+  $("volnote").textContent = !v ? "Roon doesn't control this zone's volume." : "";
+  if (!dragging) {
+    $("vol").value = v?.level ?? 0;
+    $("volval").textContent = shown(v);
+  }
+}
+
+$("playpause").onclick = () => call("POST", "/api/media/playpause");
+$("previous").onclick = () => call("POST", "/api/media/previous");
+$("next").onclick = () => call("POST", "/api/media/next");
+$("volup").onclick = () => call("POST", "/api/volume/up");
+$("voldown").onclick = () => call("POST", "/api/volume/down");
+$("mute").onclick = () => call("PUT", "/api/mute", { muted: !state?.volume?.muted });
+
+const vol = $("vol");
+vol.addEventListener("input", () => { dragging = true; $("volval").textContent = vol.value; });
+vol.addEventListener("change", () => {
+  dragging = false;
+  call("PUT", "/api/volume", { level: Number(vol.value) });
+});
+
+function listen() {
+  source?.close();
+  source = new EventSource(withZone("/api/events"));
+  source.onmessage = (e) => render(JSON.parse(e.data));
+  source.onerror = () => {
+    $("conn").textContent = "reconnecting…";
+    $("conn").className = "bad";
+  };
+}
+
+async function loadZones() {
+  const [health, zones] = await Promise.all([
+    fetch("/healthz").then((r) => r.json()),
+    fetch("/api/zones").then((r) => (r.ok ? r.json() : [])),
+  ]);
+  let saved = null;
+  try { saved = localStorage.getItem("zone"); } catch {}
+  const names = zones.map((z) => z.zone).sort();
+  zone = names.includes(saved) ? saved : health.default_zone;
+  $("zone").replaceChildren(...names.map((n) => new Option(n, n, false, n === zone)));
+  if (!names.length) $("zone").replaceChildren(new Option(zone, zone, true, true));
+}
+
+$("zone").onchange = () => {
+  zone = $("zone").value;
+  try { localStorage.setItem("zone", zone); } catch {}
+  listen();
+};
+
+loadZones().catch(() => {}).finally(listen);
+</script>
+</body>
+</html>
